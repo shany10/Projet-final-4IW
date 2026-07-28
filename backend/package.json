@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest",
     "test:unit": "jest src/test/unit",
+    "test:integration": "jest src/test/integration",
     "start": "node dist/index.js",
     "build": "tsc",
     "dev": "tsx --watch index.ts",
@@ -22,7 +23,10 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.9.2",
     "@types/nodemailer": "^7.0.11",
+    "@types/supertest": "^7.2.1",
     "jest": "^30.4.2",
+    "mongodb-memory-server": "^11.2.0",
+    "supertest": "^7.2.2",
     "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
