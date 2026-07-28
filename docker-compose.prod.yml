@@ -67,6 +67,8 @@ services:
       SENTRY_SERVER_DSN: "${SENTRY_SERVER_DSN}"
       NUXT_PUBLIC_UMAMI_SRC: "${NUXT_PUBLIC_UMAMI_SRC}"
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: "${NUXT_PUBLIC_UMAMI_WEBSITE_ID}"
+      # Réactive les routes de test GlitchTip (/api/debug/*) en prod si "true".
+      ENABLE_DEBUG_ROUTES: "${ENABLE_DEBUG_ROUTES:-}"
     ports:
       - "3001:3001"
     depends_on:
