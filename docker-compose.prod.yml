@@ -40,11 +40,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
-      # DSN Sentry passes au build pour embarquer @sentry/nuxt (module decide au
-      # build). Sans ca, le suivi d'erreurs frontend/SSR ne serait pas inclus.
+      # Passees au build : DSN Sentry (module decide au build) et variables Umami
+      # (script injecte dans <head> au build). Sans ca, ni le suivi d'erreurs
+      # frontend/SSR ni le tracking Umami ne seraient embarques.
       args:
         NUXT_PUBLIC_SENTRY_DSN: "${NUXT_PUBLIC_SENTRY_DSN}"
         SENTRY_SERVER_DSN: "${SENTRY_SERVER_DSN}"
+        NUXT_PUBLIC_UMAMI_SRC: "${NUXT_PUBLIC_UMAMI_SRC}"
+        NUXT_PUBLIC_UMAMI_WEBSITE_ID: "${NUXT_PUBLIC_UMAMI_WEBSITE_ID}"
     environment:
       NODE_ENV: "production"
       NITRO_HOST: "0.0.0.0"
