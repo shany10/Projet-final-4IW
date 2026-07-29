@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Suite E2E autonome : la config demarre elle-meme le backend Express et le
-// frontend Nuxt. Seul prerequis externe : le conteneur Mongo du compose
-// (docker compose up -d mongo). La base eatplanner_e2e est dediee aux tests.
+// Suite E2E 100% autonome : la config demarre elle-meme un MongoDB embarque
+// (mongodb-memory-server, aucun Docker requis), le backend Express et le
+// frontend Nuxt. Seuls prerequis machine : Node + npm install + chromium.
 
 export default defineConfig({
   testDir: "./tests",
@@ -19,13 +19,13 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: "npm run dev",
-      cwd: "../backend",
+      // Le wrapper demarre le Mongo embarque puis le backend (l'URI est
+      // injectee par le script). 240s : 1er run = telechargement de mongod.
+      command: "node scripts/backend-with-embedded-mongo.mjs",
       url: "http://localhost:3000/",
       reuseExistingServer: true,
-      timeout: 120_000,
+      timeout: 240_000,
       env: {
-        MONGODB_URI: "mongodb://root:example@localhost:27017/eatplanner_e2e?authSource=admin",
         // Le limiteur auth (20 req / 15 min) tuerait la suite.
         AUTH_RATE_LIMIT_MAX: "100000",
         MAIL_MODE: "log"

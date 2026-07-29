@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
-    "@types/node": "^24.9.2"
+    "@types/node": "^24.9.2",
+    "mongodb-memory-server": "^11.2.0"
   }
 }
