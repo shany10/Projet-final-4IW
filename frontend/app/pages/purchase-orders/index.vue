@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import * as Sentry from '@sentry/nuxt'
 import { getFetchErrorMessage } from '~/utils/fetch-error'
+import { trackEvent } from '~/utils/analytics'
 import StatCard from '~/components/common/StatCard.vue'
 import CardPaymentForm, { type CardPaymentFormPayload } from '~/components/purchase-orders/CardPaymentForm.vue'
 import type { Ingredient, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus } from '~/types/business'
@@ -184,6 +186,19 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+// Simulation de panne demandee par le cahier des charges : le "gateway" de
+// paiement carte tombe volontairement en erreur ~1 fois sur 3 (TypeError) pour
+// valider la remontee d'alertes dans GlitchTip. A retirer d'un vrai paiement.
+function simulateFlakyPaymentGateway() {
+  if (Math.random() >= 1 / 3) {
+    return
+  }
+
+  const gateway = { name: 'mock-card-gateway' } as { name: string, charge?: () => void }
+  // Appel volontairement invalide : gateway.charge n'existe pas -> TypeError.
+  gateway.charge!()
+}
+
 async function submitCardPayment(payload: CardPaymentFormPayload) {
   const order = payingOrder.value
   if (!order || paymentSubmitting.value) {
@@ -194,6 +209,10 @@ async function submitCardPayment(payload: CardPaymentFormPayload) {
   paymentStage.value = 'processing'
 
   try {
+    // Panne intermittente simulee avant tout appel reseau (aucun paiement reel
+    // n'est declenche quand le gateway "echoue").
+    simulateFlakyPaymentGateway()
+
     // Delai minimal pour laisser l'animation de traitement respirer
     const [result] = await Promise.all([
       purchaseOrderStore.payByCard(order._id, {
@@ -209,11 +228,23 @@ async function submitCardPayment(payload: CardPaymentFormPayload) {
     paymentSuccessSummary.value = `${formatCurrency(order.totalInclTax || order.totalAmount || 0)} regles a ${getOrderSupplierNames(order)}`
     paymentStage.value = 'success'
 
+    // Tunnel de conversion : etape 4 (checkout_success). Le montant regle est
+    // passe en propriete pour calculer le panier moyen cote Umami.
+    trackEvent('checkout_success', {
+      montant: order.totalInclTax || order.totalAmount || 0,
+      fournisseur: getOrderSupplierNames(order),
+      moyen: 'carte',
+      commande: order.orderNumber || order._id
+    })
+
     await delay(2300)
     paymentStage.value = 'form'
     closePayment()
     appToast.success('Paiement carte accepte', `${result.order.orderNumber || ''} marquee payee. ${notificationLabel}`)
   } catch (error) {
+    // Remontee explicite vers GlitchTip : la panne simulee (comme un vrai refus
+    // gateway) est capturee avec sa stack trace pour investigation.
+    Sentry.captureException(error)
     paymentStage.value = 'form'
     errorMessage.value = getFetchErrorMessage(error, 'Le paiement par carte a ete refuse')
     appToast.error('Paiement refuse', errorMessage.value)
@@ -248,9 +279,10 @@ async function submitBankTransferPayment() {
     return
   }
 
+  const order = payingOrder.value
   paymentSubmitting.value = true
   try {
-    const result = await purchaseOrderStore.payByBankTransfer(payingOrder.value._id, {
+    const result = await purchaseOrderStore.payByBankTransfer(order._id, {
       accountHolder: paymentForm.accountHolder,
       iban: paymentForm.iban,
       bic: paymentForm.bic,
@@ -262,6 +294,15 @@ async function submitBankTransferPayment() {
     const notificationLabel = result.sent.length > 0
       ? `${result.sent.length} confirmation(s) envoyee(s) au fournisseur.`
       : 'Aucun email fournisseur configure, paiement trace en interne.'
+
+    // Tunnel de conversion : etape 4 (checkout_success) via virement.
+    trackEvent('checkout_success', {
+      montant: order.totalInclTax || order.totalAmount || 0,
+      fournisseur: getOrderSupplierNames(order),
+      moyen: 'virement',
+      commande: order.orderNumber || order._id
+    })
+
     appToast.success('Virement confirme', `${result.order.orderNumber || ''} marquee payee. ${notificationLabel}`)
     closePayment()
   } catch (error) {

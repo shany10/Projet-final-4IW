@@ -270,6 +270,17 @@ function addIngredientToCart(ingredient: Ingredient, quantity = getRecommendedQu
   }
 
   const safeQuantity = Math.max(quantity || ingredient.minimumOrderQuantity || 1, ingredient.minimumOrderQuantity || 0.01)
+
+  // Tunnel de conversion : etape 2 (add_to_cart). Chaque ajout est trace, y
+  // compris quand on incremente une ligne deja presente au panier.
+  trackEvent('add_to_cart', {
+    produit: ingredient.name,
+    categorie: ingredient.category,
+    fournisseur: getIngredientSupplierName(ingredient),
+    quantite: roundMoney(safeQuantity),
+    prix_unitaire: ingredient.purchasePrice
+  })
+
   const existing = cartLines.value.find(line => line.ingredientId === ingredient._id)
 
   if (existing) {
@@ -396,6 +407,24 @@ function resetIngredientFilters() {
   ingredientFilters.category = 'all'
   ingredientFilters.stock = 'all'
 }
+
+// Tunnel de conversion : etapes 1 (view_product) et 3 (checkout_start).
+// On observe le changement d'etape de l'assistant plutot que d'instrumenter
+// chaque bouton, pour capter aussi les navigations via la barre d'etapes.
+watch(activeStep, (step) => {
+  if (step === 'selection') {
+    trackEvent('view_product', {
+      catalogue: 'ingredients',
+      produits_visibles: filteredForecastLines.value.length
+    })
+  } else if (step === 'checkout') {
+    trackEvent('checkout_start', {
+      lignes: cartLineCount.value,
+      montant: cartTotalInclTax.value,
+      fournisseurs: selectedSuppliers.value.map(supplier => supplier.name).join(', ')
+    })
+  }
+})
 
 onMounted(loadPage)
 </script>
